@@ -40,18 +40,17 @@ def get_class_id(root_path, train_names):
         list
             List containing all image classes id
     '''
-    image_dirs = []
+    images = []
     classes = []
-    for names in train_names:
+    for idx, names in enumerate(train_names):
         path = root_path + '/' + names
         dir = os.listdir(path)
-        true_path = []
         for d in dir:
-            true_path.append(root_path + '/' + names + '/' + d)
-        image_dirs.append(true_path)
-        classes.append(names)
-
-    return image_dirs, classes
+            true_path = root_path + '/' + names + '/' + d
+            image = cv.imread(true_path)
+            images.append(image)
+            classes.append(idx)
+    return images, classes
 
 
 def detect_faces_and_filter(image_list, image_classes_list=None):
@@ -76,6 +75,32 @@ def detect_faces_and_filter(image_list, image_classes_list=None):
             List containing all filtered image classes id
     '''
 
+    face_cascade = cv.CascadeClassifier('./haarcascades/haarcascade_frontalface_default.xml')
+
+    faces = []
+    rectangles = []
+    classes = []
+
+    for i, img in enumerate(image_list):
+        img_gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        detected = face_cascade.detectMultiScale(img_gray, 1.3, 6)
+
+        if len(detected) < 1:
+            continue
+
+        for face in detected:
+            x, y, w, h = face
+            face_img = img_gray[y:y+h, x:x+w]
+
+            faces.append(face_img)
+            if image_classes_list is not None:
+                classes.append(image_classes_list[i])
+
+            rectangles.append([x, y, x+w, y+h])
+
+    return faces, rectangles, classes
+
+
 def train(train_face_grays, image_classes_list):
     '''
         To create and train face recognizer object
@@ -93,6 +118,11 @@ def train(train_face_grays, image_classes_list):
             Recognizer object after being trained with cropped face images
     '''
 
+    face_recognizer = cv.face.LBPHFaceRecognizer_create()
+    face_recognizer.train(train_face_grays, np.array(image_classes_list))
+
+    return face_recognizer
+
 def get_test_images_data(test_root_path):
     '''
         To load a list of test images from given path list
@@ -107,6 +137,14 @@ def get_test_images_data(test_root_path):
         list
             List containing all loaded gray test images
     '''
+
+    test_imgs = []
+
+    for filename in os.listdir(test_root_path):
+        img = cv.imread(test_root_path + '/' + filename)
+        test_imgs.append(img)
+
+    return test_imgs
 
 def predict(recognizer, test_faces_gray):
     '''
@@ -124,6 +162,15 @@ def predict(recognizer, test_faces_gray):
         list
             List containing all prediction results from given test faces
     '''
+
+    classes = []
+
+    for img in test_faces_gray:
+        res, _ = recognizer.predict(img)
+        classes.append(res)
+
+    return classes
+
 
 def draw_prediction_results(predict_results, test_image_list, test_faces_rects, train_names):
     '''
@@ -147,6 +194,16 @@ def draw_prediction_results(predict_results, test_image_list, test_faces_rects, 
             final result
     '''
 
+    img_with_rect = []
+    for result, img, rect in zip(predict_results, test_image_list, test_faces_rects):
+        cv.rectangle(img, (rect[0], rect[1]), (rect[2], rect[3]), (0, 255, 0), 2)
+        text = train_names[result]
+        cv.putText(img, text, (rect[0], rect[1]-10), cv.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+        img_with_rect.append(img)
+
+    return img_with_rect
+
+
 def combine_and_show_result(image_list):
     '''
         To show the final image that already combine into one image
@@ -156,6 +213,12 @@ def combine_and_show_result(image_list):
         image_list : nparray
             Array containing image data
     '''
+    for idx, img in enumerate(image_list):
+        plt.subplot(2, 3, idx+1)
+        plt.imshow(img)
+        plt.axis("off")
+
+    plt.show()
 
 '''
 You may modify the code below if it's marked between
@@ -189,7 +252,7 @@ if __name__ == "__main__":
 
     train_names = get_path_list(train_root_path) #labels_list
     train_image_list, image_classes_list = get_class_id(train_root_path, train_names) #faces, indexes
-    train_face_grays, _, filtered_classes_list = detect_faces_and_filter(train_image_list, image_classes_list)
+    train_face_grays, rec, filtered_classes_list = detect_faces_and_filter(train_image_list, image_classes_list)
     recognizer = train(train_face_grays, filtered_classes_list)
 
     '''
