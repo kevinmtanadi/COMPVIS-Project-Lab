@@ -85,7 +85,7 @@ def detect_faces_and_filter(image_list, image_classes_list=None):
         img_gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         detected = face_cascade.detectMultiScale(img_gray, 1.3, 6)
 
-        if len(detected) < 1:
+        if len(detected) != 1:
             continue
 
         for face in detected:
@@ -198,6 +198,10 @@ def draw_prediction_results(predict_results, test_image_list, test_faces_rects, 
     for result, img, rect in zip(predict_results, test_image_list, test_faces_rects):
         cv.rectangle(img, (rect[0], rect[1]), (rect[2], rect[3]), (0, 255, 0), 2)
         text = train_names[result]
+        if result in [0, 2]:
+            text += ' - Youtube'
+        else:
+            text += ' - Twitch'
         cv.putText(img, text, (rect[0], rect[1]-10), cv.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
         img_with_rect.append(img)
 
@@ -214,6 +218,7 @@ def combine_and_show_result(image_list):
             Array containing image data
     '''
     for idx, img in enumerate(image_list):
+        img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         plt.subplot(2, 3, idx+1)
         plt.imshow(img)
         plt.axis("off")
